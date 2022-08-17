@@ -55,7 +55,7 @@ def gsbm(nc, npc, p, q):
 
 	return t
 
-def hgsbm(nc, npc, p, q, d):
+def hgsbm(nc, npc, p, q, d, edge_mode = False):
 
 	"""
 	hgsbm: hyper-graph stochastic block model
@@ -69,10 +69,12 @@ def hgsbm(nc, npc, p, q, d):
 	p: probability of connection within cluster
 	q: probability of connection outside cluster 
 	d: degree of hyperedge
+	edge_mode: returns edges instead of adjacency matrix
 
 	--- returns ---
 
-	t: adjacency tensor
+	t: adjacency tensor (if edge_mode = False)
+	edges: hyper-edges of the network (if edge_mode = True)
 
 	"""
 
@@ -120,18 +122,90 @@ def hgsbm(nc, npc, p, q, d):
 		connections = np.random.binomial(1,P,len(edges)).astype(bool)
 		selected_edges = edges[connections]
 
+	if edge_mode:
+
+		return selected_edges
+
+	else:
+
+		for edge in selected_edges:
+			
+			# generate all permutations of edge
+			edge_perms = np.array(list(permutations(edge,d)))
+			
+			# construct adjacency tensor
+			for edge_idx in edge_perms:
+				t[edge_idx] = 1
+
+		return t
+
+
+def sbm_model(nc, npc, p, q, orders):
+
+	"""
+	generate a model (list of interactions)
+	using the hgsbm algorithm
+
+	--- parameters ---
+
+	nc: number of clusters
+	npc: number of nodes per cluster
+	p: probability of connection within cluster
+	q: probability of connection outside cluster 
+	orders: list of interaction orders OR single interaction order
+
+		example: 
+		input [2,3,5] would result in a network with only
+		2-, 3-, and 5-body interactions
+
+	--- returns ---
 	
-	for edge in selected_edges:
-		
-		# generate all permutations of edge
-		edge_perms = np.array(list(permutations(edge,d)))
-		
-		# construct adjacency tensor
-		for edge_idx in edge_perms:
-			t[edge_idx] = 1
+	n: number of nodes corresponding to network structure
+	model: sorted list of interactions in integer format
 
-	return t
 
+	"""
+
+	# convert orders to list (allows input of single integer)
+	orders = np.array([orders]).flatten() 
+
+	n = nc * npc # number of nodes 
+
+	# check if interaction orders are valid
+	for order in orders:
+
+		if order <= 1 or order > n:
+
+			raise ValueError(f'List of interaction orders contains invalid order {order}')
+
+	# check if probabilities are valid
+
+	if p < 0 or p > 1:
+
+		raise ValueError('Probability p is invalid. Select a value between 0 and 1')
+
+	if q < 0 or q > 1:
+
+		raise ValueError('Probability p is invalid. Select a value between 0 and 1')
+
+	model = []
+
+	print('generating model...')
+	print(f'{n} nodes, {nc} clusters, {npc} nodes per cluster')
+
+	for order in orders:
+
+		edges = hgsbm(nc, npc, p, q, order, edge_mode = True)
+
+		print(f'{len(edges)} interactions of order {order}')
+
+		for edge in edges:
+
+			op = np.sum([2**x for x in edge])
+
+			model.append(op)
+
+	return n, sorted(model)
 
 
 
